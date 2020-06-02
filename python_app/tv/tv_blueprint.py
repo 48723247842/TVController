@@ -207,6 +207,19 @@ def input_get_available( request ):
 	return json_result( result )
 
 
+@tv_blueprint.route( "/power/get" , methods=[ "GET" ] )
+def volume_mute_on( request ):
+	result = { "message": "failed" , "power_state": None }
+	try:
+		tv_config = get_tv_config_from_redis()
+		tv = viziocontroller.VizioController( tv_config )
+		result["power_state"] = tv.api.get_power_state()
+		result["message"] = "success"
+	except Exception as e:
+		print( e )
+		result["error"] = str( e )
+	return json_result( result )
+
 @tv_blueprint.route( "/power/off" , methods=[ "GET" ] )
 def volume_mute_on( request ):
 	result = { "message": "failed" , "power_state": None }
