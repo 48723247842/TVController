@@ -6,6 +6,8 @@ import json
 import time
 import redis
 import viziocontroller
+from local_ip_finder import IPFinder
+ip_finder = IPFinder()
 
 def redis_connect():
 	try:
@@ -30,6 +32,20 @@ def get_tv_config_from_redis():
 		print( e )
 		return False
 
+def rescan_for_tv():
+	try:
+		redis_connection = redis_connect()
+		config = redis_connection.get( "CONFIG.VIZIO_TV_CONTROLLER_SERVER" )
+		config = json.loads( config )
+		ip_address = ip_finder.from_mac_address( config["tv"]["mac_address"] )
+		if ip_address == False:
+			return False
+		config["tv"]["ip"] = ip_address
+		redis_connection.set( "CONFIG.VIZIO_TV_CONTROLLER_SERVER" , json.dumps( config ) )
+	except Exception as e:
+		print( e )
+		return False
+
 tv_blueprint = Blueprint( 'tv_blueprint' , url_prefix='/tv' )
 
 @tv_blueprint.route( '/' )
@@ -39,7 +55,7 @@ def commands_root( request ):
 @tv_blueprint.route( "/get/ip" , methods=[ "GET" ] )
 def get_ip( request ):
 	result = { "message": "failed" , "ip": None }
-	try:
+	def exec_block():
 		redis_connection = redis_connect()
 		config = redis_connection.get( "CONFIG.VIZIO_TV_CONTROLLER_SERVER" )
 		config = json.loads( config )
@@ -50,56 +66,80 @@ def get_ip( request ):
 			result["ip"] = tv.ip
 			config["tv"]["ip"] = tv.ip
 			redis_connection.set( "CONFIG.VIZIO_TV_CONTROLLER_SERVER" , json.dumps( config ) )
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/volume/get" , methods=[ "GET" ] )
 def volume_get( request ):
 	result = { "message": "failed" , "volume": None }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		result["volume"] = tv.api.get_volume()
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/volume/up" , methods=[ "GET" ] )
 def volume_up( request ):
 	result = { "message": "failed" , "volume": None }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		tv.api.volume_up()
 		result["volume"] = tv.api.get_volume()
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/volume/down" , methods=[ "GET" ] )
 def volume_down( request ):
 	result = { "message": "failed" , "volume": None }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
-		tv.api.volume_up()
+		tv.api.volume_down()
 		result["volume"] = tv.api.get_volume()
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/volume/mute/off" , methods=[ "GET" ] )
 def volume_mute_off( request ):
 	result = { "message": "failed" , "volume": None }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		tv.api.set_audio_setting( "mute" , "Off" )
@@ -114,15 +154,21 @@ def volume_mute_off( request ):
 			muted = "unknown"
 		result["muted"] = muted
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/volume/mute/on" , methods=[ "GET" ] )
 def volume_mute_on( request ):
 	result = { "message": "failed" , "volume": None }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		tv.api.set_audio_setting( "mute" , "On" )
@@ -137,29 +183,41 @@ def volume_mute_on( request ):
 			muted = "unknown"
 		result["muted"] = muted
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/input/get/current" , methods=[ "GET" ] )
 def input_get_current( request ):
 	result = { "message": "failed" }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		current_input = tv.api.get_current_input()
 		result["current_input"] = current_input["name"]
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/input/get/available" , methods=[ "GET" ] )
 def input_get_available( request ):
 	result = { "message": "failed" }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		available_inputs = tv.api.get_available_inputs()
@@ -168,15 +226,21 @@ def input_get_available( request ):
 		current_input = tv.api.get_current_input()
 		result["current_input"] = current_input["name"]
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/input/set" , methods=[ "GET" ] )
-def input_get_available( request ):
+def input_set( request ):
 	result = { "message": "failed" }
-	try:
+	def exec_block():
 		input_name = request.args.get( "name" )
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
@@ -184,15 +248,21 @@ def input_get_available( request ):
 		current_input = tv.api.get_current_input()
 		result["current_input"] = current_input["name"]
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/input/cycle" , methods=[ "GET" ] )
-def input_get_available( request ):
+def input_cycle( request ):
 	result = { "message": "failed" }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		tv.api.cycle_input()
@@ -201,86 +271,72 @@ def input_get_available( request ):
 		current_input = tv.api.get_current_input()
 		result["current_input"] = current_input["name"]
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
-
 @tv_blueprint.route( "/power/get" , methods=[ "GET" ] )
-def volume_mute_on( request ):
+def power_get( request ):
 	result = { "message": "failed" , "power_state": None }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		result["power_state"] = tv.api.get_power_state()
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/power/off" , methods=[ "GET" ] )
-def volume_mute_on( request ):
+def power_off( request ):
 	result = { "message": "failed" , "power_state": None }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		tv.api.power_off()
 		result["power_state"] = tv.api.get_power_state()
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
 
 @tv_blueprint.route( "/power/on" , methods=[ "GET" ] )
-def volume_mute_on( request ):
+def power_on( request ):
 	result = { "message": "failed" , "power_state": None }
-	try:
+	def exec_block():
 		tv_config = get_tv_config_from_redis()
 		tv = viziocontroller.VizioController( tv_config )
 		tv.api.power_on()
 		result["power_state"] = tv.api.get_power_state()
 		result["message"] = "success"
+	try:
+		exec_block()
 	except Exception as e:
 		print( e )
-		result["error"] = str( e )
+		rescan_for_tv()
+		try:
+			exec_block()
+		except Exception as e:
+			result["error"] = str( e )
 	return json_result( result )
-
-
-# Needs /set/position?track_id=asdf&position=2134
-# @tv_blueprint.route( "/set/position" , methods=[ "GET" ] )
-# def set_position( request ):
-# 	result = { "message": "failed" , "status": None , "metadata": None }
-# 	try:
-# 		track_id = request.args.get( "track_id" )
-# 		if track_id == None:
-# 			raise Exception( "no track_id in request.args" )
-# 		if position == None:
-# 			raise Exception( "no position in request.args" )
-
-# 		spotify_dbus_controller = SpotifyDBusController()
-# 		spotify_dbus_controller.set_position( track_id , position )
-# 		time.sleep( .5 )
-# 		result["status"] = spotify_dbus_controller.get_playback_status()
-# 		result["message"] = "success"
-# 		result["metadata"] = spotify_dbus_controller.get_metadata()
-# 	except Exception as e:
-# 		print( e )
-# 		result["error"] = str( e )
-# 	return json_result( result )
-
-
-# @tv_blueprint.route( "/set/shuffle/status/<status>" , methods=[ "GET" ] )
-# def get_loop_status( request ):
-# 	result = { "message": "failed" , "status": None , "metadata": None }
-# 	try:
-# 		spotify_dbus_controller = SpotifyDBusController()
-# 		spotify_dbus_controller.set_shuffle_status( status )
-# 		result["status"] = spotify_dbus_controller.get_playback_status()
-# 		result["metadata"] = spotify_dbus_controller.get_metadata()
-# 	except Exception as e:
-# 		print( e )
-# 		result["error"] = str( e )
-# 	return json_result( result )

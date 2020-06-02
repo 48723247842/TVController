@@ -15,6 +15,7 @@ RUN python3 -m pip install redis
 RUN python3 -m pip install sanic
 RUN python3 -m pip install viziocontroller
 RUN python3 -m pip install wakeonlan
+RUN python3 -m pip install local-ip-finder
 
 COPY python_app /home/python_app
 WORKDIR "/home/python_app"
